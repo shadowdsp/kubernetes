@@ -27,12 +27,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
+	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/features"
 	schedutil "k8s.io/kubernetes/pkg/scheduler/util"
 )
@@ -613,6 +615,24 @@ func (r *Resource) Add(rl v1.ResourceList) {
 			}
 		}
 	}
+}
+
+// ResourceList returns a resource list of this resource.
+func (r *Resource) ResourceList() v1.ResourceList {
+	result := v1.ResourceList{
+		v1.ResourceCPU:              *resource.NewMilliQuantity(r.MilliCPU, resource.DecimalSI),
+		v1.ResourceMemory:           *resource.NewQuantity(r.Memory, resource.BinarySI),
+		v1.ResourcePods:             *resource.NewQuantity(int64(r.AllowedPodNumber), resource.BinarySI),
+		v1.ResourceEphemeralStorage: *resource.NewQuantity(r.EphemeralStorage, resource.BinarySI),
+	}
+	for rName, rQuant := range r.ScalarResources {
+		if v1helper.IsHugePageResourceName(rName) {
+			result[rName] = *resource.NewQuantity(rQuant, resource.BinarySI)
+		} else {
+			result[rName] = *resource.NewQuantity(rQuant, resource.DecimalSI)
+		}
+	}
+	return result
 }
 
 // Clone returns a copy of this resource.
